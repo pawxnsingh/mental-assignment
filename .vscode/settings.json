@@ -1,0 +1,7 @@
+{
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.indexing": true,
+    "python.analysis.packageIndexDepths": [
+        { "name": "", "depth": 20, "includeAllSymbols": true }
+    ]
+}
