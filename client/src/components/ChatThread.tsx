@@ -12,11 +12,13 @@ interface ChatThreadProps {
   selectedPatientId?: string;
   messageType: "search" | "counseling";
   setMessageType: (str: "search" | "counseling") => any;
+  handleCreateThread: () => Promise<void>
 }
 
 export function ChatThread({
   messages,
   patients,
+  handleCreateThread,
   selectedPatient,
   onSelectPatient,
   messageType,
@@ -112,7 +114,9 @@ export function ChatThread({
                   key={patient.id}
                   onClick={() => {
                     onSelectPatient(patient);
+                    handleCreateThread();
                     setShowPatientSelector(false);
+                    // here i need to create a new thread
                   }}
                   className={`w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 ${
                     selectedPatientId === patient.id ? "bg-blue-50" : ""

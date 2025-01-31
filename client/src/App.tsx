@@ -32,9 +32,6 @@ function App() {
   // this is the for the loading
   const [loading, setLoading] = React.useState(true);
 
-  const [isResponseComing, setIsResponseComing] =
-    React.useState<boolean>(false);
-
   const [isStreaming, setIsStreaming] = React.useState(false);
 
   const [isUserScrolling, setIsUserScrolling] = React.useState(false);
@@ -359,6 +356,7 @@ function App() {
         <ChatThread
           messages={messages}
           patients={patients}
+          handleCreateThread={handleCreateThread}
           messageType={messageType}
           setMessageType={setMessageType}
           selectedPatient={selectedPatient}

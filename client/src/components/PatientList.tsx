@@ -1,15 +1,15 @@
-import { Plus, Search, Edit2, Trash2, MessageSquare } from "lucide-react";
+import { Plus, Edit2, Trash2, MessageSquare } from "lucide-react";
 import type { Patient, ChatMessage, Threads } from "../types";
 
 interface PatientListProps {
   patients: Patient[];
   messages: ChatMessage[];
 
-  selectedThread:string;
+  selectedThread: string;
   setSelectedThread: (thread_id: string) => any;
   threads: Threads[];
   setThreads: (thread: any) => any;
-  handleSelectedThread: (thread_id:string) => any
+  handleSelectedThread: (thread_id: string) => any;
 
   onAddPatient: () => void;
   onEditPatient: (patient: Patient) => void;
@@ -48,9 +48,13 @@ export function PatientList({
             {threads.map((thread) => (
               <div
                 key={thread.id}
-                className={`p-3 bg-gray-50 rounded-lg  ${thread.id === selectedThread ? "bg-gray-200" : "hover:bg-gray-100"} cursor-pointer`}
+                className={`p-3 bg-gray-50 rounded-lg  ${
+                  thread.id === selectedThread
+                    ? "bg-gray-200"
+                    : "hover:bg-gray-100"
+                } cursor-pointer`}
                 onClick={() => {
-                  // thread_id is selected, now i have to 
+                  // thread_id is selected, now i have to
                   setSelectedThread(thread.id);
                   handleSelectedThread(thread.id);
                 }}
@@ -85,17 +89,6 @@ export function PatientList({
             >
               <Plus size={20} />
             </button>
-          </div>
-          <div className="relative">
-            <Search
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-              size={18}
-            />
-            <input
-              type="text"
-              placeholder="Search patients..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
           </div>
         </div>
         <div className="divide-y divide-gray-100">

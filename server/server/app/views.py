@@ -1,37 +1,16 @@
-from http.client import responses
 import json
-from django.http import HttpRequest, HttpResponse, JsonResponse, StreamingHttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 import pandas as pd
+from spellchecker import SpellChecker
 from openai import OpenAI
 from dotenv import load_dotenv
 from app.models import CounselingTranscript, Patient, ChatThread, ChatMessage
 from pgvector.django import CosineDistance
 from app.constants import RESPOND_TO_MESSAGE_SYSTEM_PROMPT
 import os
+
 load_dotenv()
-
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), timeout=20, max_retries=0)
-
-def generate(patient_diagnosis, message):
-    response = client.chat.completions.create(
-        model="gpt-4o-2024-08-06",
-        messages = [
-            {"role": "developer", "content": f"{RESPOND_TO_MESSAGE_SYSTEM_PROMPT.replace('{{diagnosis}}',patient_diagnosis)}"},
-            {"role": "user", "content": f"{message}"}
-        ],
-        stream=True,
-        temperature=0.0,
-    )
-    # Yield each chunk's content
-    for chunk in response:
-        if (
-            "choices" in chunk 
-            and len(chunk["choices"]) > 0 
-            and "delta" in chunk["choices"][0]
-        ):
-            content = chunk["choices"][0]["delta"].get("content", "")
-            if content:
-                yield content
 
 def chat(req:HttpRequest) -> JsonResponse:
     if req.method == "POST":
@@ -87,7 +66,6 @@ def chat(req:HttpRequest) -> JsonResponse:
         
     return JsonResponse("invalid query", safe=False)
 
-
 def create_thread(req:HttpRequest) -> HttpResponse:
     if req.method == "POST":
         try:
@@ -95,8 +73,6 @@ def create_thread(req:HttpRequest) -> HttpResponse:
             body_str = body_bytes.decode('utf-8')
             data = json.loads(body_str)
             title = data['title']
-            
-            print(title)
             
             chat_thread = ChatThread.objects.create(
                 title = title
@@ -232,7 +208,19 @@ def patients(req:HttpRequest) -> JsonResponse:
         
     return JsonResponse({"error": "Invalid request"}, status=400)
 
-def search_similar_chunks(query_embedding, limit=5):
+def is_valid_input(text):
+    spell = SpellChecker()    
+    words = text.split()    
+    misspelled = spell.unknown(words)
+    if misspelled:
+        print(f"Misspelled words: {misspelled}")
+        return False  
+    return True
+
+def search_similar_chunks(query_embedding, query, limit=5):
+    if not is_valid_input(query):
+        return []
+    
     return (
         CounselingTranscript.objects
         .annotate(distance=CosineDistance('embedding', query_embedding))
@@ -251,10 +239,9 @@ def search_database(req:HttpRequest) -> JsonResponse:
         embedding_response = client.embeddings.create(model="text-embedding-3-small", input=query)
         query_embedding = embedding_response.data[0].embedding
         
-        relevant_chunks = search_similar_chunks(query_embedding)        
-    
+        relevant_chunks = search_similar_chunks(query_embedding, query)        
         if(len(relevant_chunks) == 0):
-            return JsonResponse("no relevant information found!", safe=False)
+            return HttpResponse("No relevant example found")
                 
         data = [
             {
@@ -263,16 +250,12 @@ def search_database(req:HttpRequest) -> JsonResponse:
             }
             for c in relevant_chunks
         ]
-        
-        
-        
         # now what we have to do is we need to give user the example
         # array with object containing {context, response}            
         return JsonResponse({"success":True, "data":data, "type":"database_search"}, safe=False)
     else:
         return JsonResponse("please hit post endpoint", safe=False)
 
-# Create your views here.
 # this is use to upload the csv file to the database
 def upload_datasets(req:HttpRequest) -> HttpResponse | JsonResponse:
     # steps, get the csv files, use pandas library to store it in the db
@@ -286,9 +269,6 @@ def upload_datasets(req:HttpRequest) -> HttpResponse | JsonResponse:
                 return JsonResponse({"error":"dataset must be in the csv format"},status='400')
             
             df = pd.read_csv(csv_file)
-            
-            print(df)
-            print(len(df))
             
             for index, row in df.iterrows():
                 context = row['Context']
@@ -312,17 +292,15 @@ def upload_datasets(req:HttpRequest) -> HttpResponse | JsonResponse:
         
         except Exception as e:
             return JsonResponse(f"Error parsing csv: {str(e)}", status=500,safe=False)
-        
     else:
-        return JsonResponse("not a post request")
-
-
+        return JsonResponse("Invalid Request")
 
 def storeSearches(req:HttpRequest) -> HttpResponse | JsonResponse:
     if req.method == "POST":     
         body_bytes = req.body        
         body_str = body_bytes.decode('utf-8')
         data = json.loads(body_str)
+        
         thread_id = data['thread_id']
         message = data['message']
         response = data['response']
