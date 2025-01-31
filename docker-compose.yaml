@@ -5,8 +5,14 @@ services:
       dockerfile: Dockerfile
     ports:
       - "5173:5173"
+    volumes:
+      - ./client:/app  # Sync local changes
+      - /app/node_modules  # Prevent overriding node_modules
     depends_on:
       - mental-backend
+    environment:
+      - NODE_ENV=development
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
     env_file:
       - ./client/.env
     networks:
@@ -20,8 +26,13 @@ services:
       - "8000:8000"
     env_file:
       - ./server/.env
+    volumes:
+      - ./server:/app  # Sync local changes
+    environment:
+      - DEBUG=True
     depends_on:
-      - pgvector
+      pgvector:
+        condition: service_healthy  
     networks:
       - mental-network
 
@@ -37,6 +48,11 @@ services:
       - ./server/db_seed.sql:/docker-entrypoint-initdb.d/db_seed.sql
     networks:
       - mental-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
 
 volumes:
   mentaldata:

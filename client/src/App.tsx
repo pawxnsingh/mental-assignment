@@ -32,12 +32,20 @@ function App() {
   // this is the for the loading
   const [loading, setLoading] = React.useState(true);
 
+  const [isResponseComing, setIsResponseComing] =
+    React.useState<boolean>(false);
+
+  const [isStreaming, setIsStreaming] = React.useState(false);
+
+  const [isUserScrolling, setIsUserScrolling] = React.useState(false);
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+  const chatContainerRef = React.useRef<HTMLDivElement>(null);
+
   // Fetch initial patients
   React.useEffect(() => {
     loadPatients();
     loadThreads();
     setMessageType("counseling");
-    
   }, []);
 
   const loadPatients = async () => {
@@ -50,6 +58,35 @@ function App() {
       setLoading(false);
     }
   };
+
+  const scrollToBottom = () => {
+    if (!isUserScrolling && !isStreaming) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  // Detect user scrolling manually
+  React.useEffect(() => {
+    const chatContainer = chatContainerRef.current;
+    if (!chatContainer) return;
+
+    const handleScroll = () => {
+      const isAtBottom =
+        chatContainer.scrollHeight - chatContainer.scrollTop <=
+        chatContainer.clientHeight + 50;
+
+      setIsUserScrolling(!isAtBottom);
+    };
+
+    chatContainer.addEventListener("scroll", handleScroll);
+    return () => chatContainer.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  React.useEffect(() => {
+    if (!isUserScrolling && !isStreaming) {
+      scrollToBottom();
+    }
+  }, [messages, isStreaming]);
 
   const loadThreads = async () => {
     try {
@@ -121,7 +158,6 @@ function App() {
       .join("\n---\n");
   }
 
-  // now this has some problem
   const handleSendMessage = async (
     content: string,
     type: ChatMessage["type"]
@@ -136,10 +172,12 @@ function App() {
       patientId: selectedPatient ? selectedPatient.id : undefined,
     };
 
+    let thinkingMessageId: string;
+
     try {
       setMessages((prev) => [...prev, messageData]);
 
-      if (!selectedPatient && messageType == "counseling") {
+      if (!selectedPatient && messageType === "counseling") {
         const newMessage: ChatMessage = {
           id: `response-${new Date().getTime()}`,
           content: "Patient is not selected, kindly select the patient..",
@@ -154,7 +192,18 @@ function App() {
 
       let responseMessage;
 
-      if (messageType == "counseling") {
+      thinkingMessageId = `thinking-${new Date().getTime()}`;
+      const thinkingMessage: ChatMessage = {
+        id: thinkingMessageId,
+        content: "Thinking...",
+        sender: "assistant",
+        type: "counseling",
+        patientId: selectedPatient ? selectedPatient.id : "",
+      };
+
+      setMessages((prev) => [...prev, thinkingMessage]);
+
+      if (messageType === "counseling") {
         responseMessage = await api.addMessage(
           content,
           selectedPatient ? selectedPatient.id : "",
@@ -165,28 +214,83 @@ function App() {
         console.log(responseMessage);
 
         const markdownOutput = convertToMarkdown(responseMessage.data);
-        responseMessage = markdownOutput
+        responseMessage = markdownOutput;
 
-        // store search in database
-        await api.storeSearches(selectedThread,responseMessage,content)
+        // Store search in database
+        await api.storeSearches(selectedThread, responseMessage, content);
 
-        console.log({markdownOutput})
+        console.log({ markdownOutput });
       }
 
       console.log(responseMessage.response);
 
+      setMessages((prev) => prev.filter((msg) => msg.id !== thinkingMessageId));
+
+      const messageId = `response-${new Date().getTime()}`;
       const newMessage: ChatMessage = {
-        id: `response-${new Date().getTime()}`,
-        content: messageType == "counseling"? responseMessage.response: responseMessage,
+        id: messageId,
+        content: "",
         sender: "assistant",
         type: "counseling",
         patientId: selectedPatient ? selectedPatient.id : "",
       };
 
       setMessages((prev) => [...prev, newMessage]);
+
+      simulateStreaming(responseMessage.response ?? responseMessage, messageId);
     } catch (error) {
       console.error("Failed to send message:", error);
-    }
+
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === thinkingMessageId
+            ? {
+                ...msg,
+                content: "⚠️ Failed to get a response. Please try again.",
+              }
+            : msg
+        )
+      );
+    } 
+  };
+
+  const simulateStreaming = (fullText: string, messageId: string) => {
+    setIsStreaming(true);
+    let currentIndex = 0;
+    const interval = 20; 
+    const chunkSize = 20;
+
+    const intervalId = setInterval(() => {
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg.id === messageId
+            ? { ...msg, content: fullText.slice(0, currentIndex + chunkSize) }
+            : msg
+        )
+      );
+
+      currentIndex += chunkSize;
+
+      if (currentIndex >= fullText.length) {
+        clearInterval(intervalId);
+        setIsStreaming(false);
+        scrollToBottom();
+      }
+    }, interval);
+
+    setTimeout(() => {
+      if (currentIndex === 0) {
+        setMessages((prevMessages) =>
+          prevMessages.map((msg) =>
+            msg.id === messageId
+              ? { ...msg, content: "⚠️ No response received. Try again." }
+              : msg
+          )
+        );
+        clearInterval(intervalId);
+        setIsStreaming(false);
+      }
+    }, 5000);
   };
 
   const handleCreateThread = async () => {
