@@ -10,7 +10,7 @@ from app.constants import RESPOND_TO_MESSAGE_SYSTEM_PROMPT
 import os
 
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), timeout=20, max_retries=0)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), timeout=60, max_retries=2)
 
 def chat(req:HttpRequest) -> JsonResponse:
     if req.method == "POST":
@@ -21,6 +21,8 @@ def chat(req:HttpRequest) -> JsonResponse:
         message = data['message'] # describing the challenge they are facing with the particular patients
         patient_id = data["patient_id"]
         thread_id = data["thread_id"]
+        
+        print("here we goooooooooooooooooo",patient_id)
         
         # get the patients details
         patient_details = Patient.objects.get(id=patient_id)

@@ -294,6 +294,7 @@ function App() {
     // make the http call to the backend
     const createThread = await api.createThread();
     setThreads([...threads, createThread]);
+    setSelectedThread(createThread.id)
     setMessages([]);
   };
 
